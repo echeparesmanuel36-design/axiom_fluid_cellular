@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>AXIOM FLUID CELLULAR // WEB DEMO</title>
+    <style>
+        body { margin: 0; background-color: #010103; color: #00bfff; font-family: monospace; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        #container { position: relative; border: 2px solid #00bfff; box-shadow: 0 0 15px rgba(0, 191, 255, 0.2); }
+        .hud { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); border: 1px solid #00bfff; padding: 10px; font-size: 12px; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="hud">
+            FPS: 60 (WEB OPTIMIZED)<br>
+            PHYSICS: CELLULAR FLUID SCATTER<br>
+            LIQUID MOLECULES: <span id="count">0</span>
+        </div>
+        <canvas id="canvas"></canvas>
+    </div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 800; canvas.height = 600;
+
+        const drops = [];
+        const floorY = 500;
+        const obsX = 400, obsY = 320, obsR = 60;
+
+        function loop() {
+            ctx.fillStyle = '#010103'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Generador/Grifo de agua continuo
+            if (drops.length < 1200) {
+                for(let i=0; i<4; i++) {
+                    drops.push({ x: canvas.width/2 + (Math.random()-0.5)*60, y: 40, vx: (Math.random()-0.5), vy: 2 });
+                }
+            }
+            document.getElementById('count').innerText = drops.length;
+
+            drops.forEach(drop => {
+                drop.vy += 0.2; // Gravedad simulada web
+                drop.x += drop.vx; drop.y += drop.vy;
+
+                // Colisión con círculo central (Efecto paraguas)
+                let dx = drop.x - obsX, dy = drop.y - obsY;
+                let dist = Math.sqrt(dx*dx + dy*dy);
+                if(dist < obsR) {
+                    drop.x = obsX + (dx/dist)*obsR; drop.y = obsY + (dy/dist)*obsR;
+                    drop.vx = (dx/dist) * (Math.random()*2 + 1); drop.vy = (dy/dist) * 1.5;
+                }
+
+                // Colisión suelo con viscosidad lateral
+                if(drop.y >= floorY) {
+                    drop.y = floorY; drop.vy = 0;
+                    if(drop.vx === 0) drop.vx = Math.random() > 0.5 ? 1.5 : -1.5;
+                    drop.x += drop.vx * (Math.random()*0.4 + 0.8);
+                }
+
+                if(drop.x < 30 || drop.x > canvas.width - 30) drop.vx *= -0.5;
+
+                ctx.fillStyle = 'rgba(0, 191, 255, 0.4)';
+                ctx.beginPath(); ctx.arc(drop.x, drop.y, 3, 0, Math.PI*2); ctx.fill();
+            });
+
+            // Obstáculo
+            ctx.fillStyle = '#0a0a10'; ctx.fillRect(0, floorY+3, canvas.width, 4); // Suelo
+            ctx.beginPath(); ctx.arc(obsX, obsY, obsR, 0, Math.PI*2); ctx.fillStyle = '#08080f'; ctx.fill();
+            ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 1.5; ctx.stroke(); // Borde rosa
+
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>
