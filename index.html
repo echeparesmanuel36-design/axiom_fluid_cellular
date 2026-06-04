@@ -2,71 +2,89 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>AXIOM FLUID CELLULAR // WEB DEMO</title>
+    <title>AXIOM FLUID CELLULAR // CATCH THE ACID</title>
     <style>
-        body { margin: 0; background-color: #010103; color: #00bfff; font-family: monospace; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
-        #container { position: relative; border: 2px solid #00bfff; box-shadow: 0 0 15px rgba(0, 191, 255, 0.2); }
-        .hud { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); border: 1px solid #00bfff; padding: 10px; font-size: 12px; pointer-events: none; }
+        body { margin: 0; background-color: #010103; color: #00bfff; font-family: monospace; overflow: hidden; display: flex; align-items: center; justify-content: center; height: 100vh; user-select: none; }
+        #container { position: relative; border: 2px solid #00bfff; }
+        .hud { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.85); border: 1px solid #00bfff; padding: 12px; font-size: 13px; pointer-events: none; }
     </style>
 </head>
 <body>
     <div id="container">
         <div class="hud">
-            FPS: 60 (WEB OPTIMIZED)<br>
-            PHYSICS: CELLULAR FLUID SCATTER<br>
-            LIQUID MOLECULES: <span id="count">0</span>
+            <span style="color:#ff0055; font-weight:bold;">OBJETIVO: ATRAPA EL ÁCIDO CON EL RECIPIENTE NEÓN</span><br>
+            GOTAS RECOLECTADAS: <span id="score">0</span><br>
+            ESTADO DEL SUELO: <span id="status">LIMPIO</span>
         </div>
         <canvas id="canvas"></canvas>
     </div>
     <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 800; canvas.height = 600;
+        const canvas = document.getElementById('canvas'); const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth < 800 ? window.innerWidth - 20 : 800;
+        canvas.height = window.innerHeight < 600 ? window.innerHeight - 20 : 600;
 
-        const drops = [];
-        const floorY = 500;
-        const obsX = 400, obsY = 320, obsR = 60;
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSplashSound() {
+            let osc = audioCtx.createOscillator(); let gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            osc.frequency.linearRampToValueAtTime(40, audioCtx.currentTime + 0.05);
+            gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.05);
+            osc.start(); osc.stop(audioCtx.currentTime + 0.05);
+        }
+
+        const drops = []; const floorY = canvas.height - 80;
+        let score = 0, floorAcid = 0, bucketX = canvas.width / 2, bucketW = 90;
+
+        function updateBucket(ex) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            bucketX = ex - bucketW/2;
+        }
+        canvas.addEventListener('mousemove', (e) => { const r = canvas.getBoundingClientRect(); updateBucket(e.clientX - r.left); });
+        canvas.addEventListener('touchmove', (e) => { const r = canvas.getBoundingClientRect(); updateBucket(e.touches[0].clientX - r.left); e.preventDefault(); }, {passive: false});
 
         function loop() {
             ctx.fillStyle = '#010103'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Generador/Grifo de agua continuo
-            if (drops.length < 1200) {
-                for(let i=0; i<4; i++) {
-                    drops.push({ x: canvas.width/2 + (Math.random()-0.5)*60, y: 40, vx: (Math.random()-0.5), vy: 2 });
+            // Sistema de spawneo (WOW MOMENT: Chorro masivo a los 100 puntos)
+            let spawnRate = score >= 100 ? 8 : 2;
+            if (drops.length < 800 && Math.random() < 0.6) {
+                for(let i=0; i<spawnRate; i++) {
+                    drops.push({ x: canvas.width/2 + (Math.random()-0.5)*100, y: 30, vx: (Math.random()-0.5)*2, vy: 3 });
                 }
             }
-            document.getElementById('count').innerText = drops.length;
 
-            drops.forEach(drop => {
-                drop.vy += 0.2; // Gravedad simulada web
-                drop.x += drop.vx; drop.y += drop.vy;
+            for(let i = drops.length - 1; i >= 0; i--) {
+                let drop = drops[i];
+                drop.vy += 0.25; drop.x += drop.vx; drop.y += drop.vy;
 
-                // Colisión con círculo central (Efecto paraguas)
-                let dx = drop.x - obsX, dy = drop.y - obsY;
-                let dist = Math.sqrt(dx*dx + dy*dy);
-                if(dist < obsR) {
-                    drop.x = obsX + (dx/dist)*obsR; drop.y = obsY + (dy/dist)*obsR;
-                    drop.vx = (dx/dist) * (Math.random()*2 + 1); drop.vy = (dy/dist) * 1.5;
+                // Colisión con el recipiente del jugador
+                if(drop.y >= floorY - 15 && drop.y <= floorY && drop.x >= bucketX && drop.x <= bucketX + bucketW) {
+                    score++; document.getElementById('score').innerText = score;
+                    playSplashSound();
+                    drops.splice(i, 1);
+                    continue;
                 }
 
-                // Colisión suelo con viscosidad lateral
+                // Cae al suelo
                 if(drop.y >= floorY) {
-                    drop.y = floorY; drop.vy = 0;
-                    if(drop.vx === 0) drop.vx = Math.random() > 0.5 ? 1.5 : -1.5;
-                    drop.x += drop.vx * (Math.random()*0.4 + 0.8);
+                    floorAcid++;
+                    if(floorAcid > 150) document.getElementById('status').innerText = "🔥 ¡PELIGRO CORROSIÓN!";
+                    drops.splice(i, 1);
+                    continue;
                 }
 
-                if(drop.x < 30 || drop.x > canvas.width - 30) drop.vx *= -0.5;
-
-                ctx.fillStyle = 'rgba(0, 191, 255, 0.4)';
+                ctx.fillStyle = score >= 100 ? '#ff00ff' : '#00bfff';
                 ctx.beginPath(); ctx.arc(drop.x, drop.y, 3, 0, Math.PI*2); ctx.fill();
-            });
+            }
 
-            // Obstáculo
-            ctx.fillStyle = '#0a0a10'; ctx.fillRect(0, floorY+3, canvas.width, 4); // Suelo
-            ctx.beginPath(); ctx.arc(obsX, obsY, obsR, 0, Math.PI*2); ctx.fillStyle = '#08080f'; ctx.fill();
-            ctx.strokeStyle = '#ff00ff'; ctx.lineWidth = 1.5; ctx.stroke(); // Borde rosa
+            // Dibujar Recipiente del Jugador
+            ctx.fillStyle = '#0a0a15'; ctx.fillRect(bucketX, floorY - 12, bucketW, 12);
+            ctx.strokeStyle = '#00ff66'; ctx.lineWidth = 2; ctx.strokeRect(bucketX, floorY - 12, bucketW, 12);
+
+            // Dibujar Suelo Peligroso
+            ctx.fillStyle = '#ff0033'; ctx.fillRect(0, floorY, canvas.width, 6);
 
             requestAnimationFrame(loop);
         }
